@@ -83,6 +83,20 @@ function validateStartup() {
 
 validateStartup();
 
+function logReadySummary() {
+    const config = {
+        TOKEN: process.env.TOKEN ? 'configured' : 'missing',
+        TRIAL_SUBMISSION_CHANNEL_ID: process.env.TRIAL_SUBMISSION_CHANNEL_ID || 'not set',
+        STAFF_DOCKET_CHANNEL_ID: process.env.STAFF_DOCKET_CHANNEL_ID || 'not set',
+        ROLE_TRIALIST: process.env.ROLE_TRIALIST || 'not set',
+        ROLE_PROSPECT: process.env.ROLE_PROSPECT || 'not set',
+        REQUIRE_CHANNELS: process.env.REQUIRE_CHANNELS || 'false',
+        REQUIRE_ROLES: process.env.REQUIRE_ROLES || 'false'
+    };
+
+    console.log('📋 Ready summary:', JSON.stringify(config, null, 2));
+}
+
 // Helper: Enforce the "No 7.0 Rule" (Forced Choice)
 function validateScore(value, label) {
     const score = parseFloat(value);
@@ -167,6 +181,7 @@ async function verifyGuildPermissions() {
 
 client.once('ready', async () => {
     console.log(`🤖 [BOT ONLINE] Logged in as ${client.user.tag}`);
+    logReadySummary();
 
     // Verify guild permissions for configured channels/roles
     try {

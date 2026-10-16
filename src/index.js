@@ -19,6 +19,69 @@ const client = new Client({
     ]
 });
 
+// Validate environment at startup
+function isValidDiscordId(id) {
+    return typeof id === 'string' && /^\d{17,19}$/.test(id);
+}
+
+function validateStartup() {
+    const required = ['TOKEN'];
+    const missing = required.filter(k => !process.env[k]);
+
+    if (missing.length) {
+        console.error('❌ Missing required environment variables:', missing.join(', '));
+        console.error('Please create a `.env` file (copy from .env.example) and set these values before starting the bot.');
+        process.exit(1);
+    }
+
+    // Optional but recommended IDs
+    const channelChecks = [
+        { key: 'TRIAL_SUBMISSION_CHANNEL_ID', name: 'Trial Submission Channel ID' },
+        { key: 'STAFF_DOCKET_CHANNEL_ID', name: 'Staff Docket Channel ID' }
+    ];
+
+    channelChecks.forEach(ch => {
+        const val = process.env[ch.key];
+        if (val && !isValidDiscordId(val)) {
+            console.warn(`⚠️ ${ch.name} (${ch.key}) appears invalid: ${val}. It should be a Discord snowflake (17-19 digits).`);
+        }
+    });
+
+    // Optional role IDs
+    const roleChecks = [
+        { key: 'ROLE_TRIALIST', name: 'Trialist Role ID' },
+        { key: 'ROLE_PROSPECT', name: 'Prospect Role ID' }
+    ];
+
+    roleChecks.forEach(r => {
+        const val = process.env[r.key];
+        if (val && !isValidDiscordId(val)) {
+            console.warn(`⚠️ ${r.name} (${r.key}) appears invalid: ${val}. It should be a Discord role id (17-19 digits).`);
+        }
+    });
+
+    // Feature gates: if you want channels/roles enforced, set these to 'true'
+    if (process.env.REQUIRE_CHANNELS === 'true') {
+        const missingChannels = channelChecks.filter(c => !process.env[c.key]).map(c => c.key);
+        if (missingChannels.length) {
+            console.error('❌ Missing required channel IDs:', missingChannels.join(', '));
+            process.exit(1);
+        }
+    }
+
+    if (process.env.REQUIRE_ROLES === 'true') {
+        const missingRoles = roleChecks.filter(r => !process.env[r.key]).map(r => r.key);
+        if (missingRoles.length) {
+            console.error('❌ Missing required role IDs:', missingRoles.join(', '));
+            process.exit(1);
+        }
+    }
+
+    console.log('✅ Startup environment validated.');
+}
+
+validateStartup();
+
 // Helper: Enforce the "No 7.0 Rule" (Forced Choice)
 function validateScore(value, label) {
     const score = parseFloat(value);

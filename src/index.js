@@ -14,10 +14,22 @@ require('dotenv').config();
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds, 
-        GatewayIntentBits.GuildMessages, 
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildMembers
     ]
 });
+
+// Helper: Enforce the "No 7.0 Rule" (Forced Choice)
+function validateScore(value, label) {
+    const score = parseFloat(value);
+    if (isNaN(score) || score < 1.0 || score > 10.0) {
+        return `⚠️ **${label}** must be a number between 1.0 and 10.0.`;
+    }
+    if (score === 7 || (score >= 6.8 && score <= 7.2)) {
+        return `❌ **${label}:** Ratings of 7.0 are disabled! You must decide if the candidate is below standard (6.0 or lower) or trial-ready (8.0 or higher).`;
+    }
+    return null;
+}
 
 client.once('ready', async () => {
     console.log(`🤖 [BOT ONLINE] Logged in as ${client.user.tag}`);
@@ -31,11 +43,11 @@ client.once('ready', async () => {
             
             if (!existing) {
                 const embed = new EmbedBuilder()
-                    .setTitle('⚽ RECRUITMENT & TRANSFER PORTAL')
-                    .setDescription('Welcome! Submit your trial application or transfer request below to join our competitive roster pipeline[span_2](start_span)[span_2](end_span)[span_3](start_span)[span_3](end_span).\n\n**Minimum Requirements:**\n• Active communication & team availability\n• High tactical awareness & discipline\n• Openness to coaching & trial feedback')
+                    .setTitle('⚽ LA ACADEMIA // RECRUITMENT PORTAL')
+                    .setDescription('Welcome! Submit your trial application or transfer request below to join our competitive roster pipeline.\n\n**Minimum Requirements:**\n• Active communication & team availability\n• High tactical awareness & discipline\n• Openness to coaching & trial feedback')
                     .setColor(0x0052FF)
                     .addFields(
-                        { name: '🎯 Target Roles', value: '• Center Backs (CB)\n• Defensive Mids (CDM)\n• Playmakers (CAM/CM)', inline: true },
+                        { name: '🎯 Open Positions', value: '• Center Backs (CB)\n• Defensive Mids (CDM)\n• Playmakers (CAM/CM)\n• Forwards (ST/LW/RW)', inline: true },
                         { name: '⚡ Status', value: '🟢 OPEN', inline: true }
                     )
                     .setFooter({ text: 'Recruitment Engine • Select an option below to apply' });
@@ -65,7 +77,7 @@ client.once('ready', async () => {
 // Main Interaction Event Router
 client.on('interactionCreate', async interaction => {
     try {
-        // 1. Handle Public Application Button Clicks
+        // 1. PUBLIC BUTTON INTERACTION: Open Intake Modal
         if (interaction.isButton()) {
             if (interaction.customId === 'apply_tryout' || interaction.customId === 'request_transfer') {
                 const isTransfer = interaction.customId === 'request_transfer';
@@ -83,7 +95,7 @@ client.on('interactionCreate', async interaction => {
 
                 const roleInput = new TextInputBuilder()
                     .setCustomId('role_input')
-                    .setLabel('Primary & Secondary Roles')
+                    .setLabel('Primary & Secondary Roles (CB, CDM, CAM, ST)')
                     .setStyle(TextInputStyle.Short)
                     .setPlaceholder('e.g., CB / CDM')
                     .setRequired(true);
@@ -120,66 +132,87 @@ client.on('interactionCreate', async interaction => {
                 return await interaction.showModal(modal);
             }
 
-            // Handle Staff Evaluation Button Click
-            if (interaction.customId.startsWith('staff_eval_')) {
-                const targetUserId = interaction.customId.split('_')[2];
-                
-                const evalModal = new ModalBuilder()
-                    .setCustomId(`modal_eval_${targetUserId}`)
-                    .setTitle('Scout Evaluation Scorecard');
+            // 2. STAFF BUTTON: Open Positional Scorecard Modals
+            if (interaction.customId.startsWith('eval_')) {
+                const parts = interaction.customId.split('_');
+                const posGroup = parts[1]; // 'def', 'mid', or 'att'
+                const targetUserId = parts[2];
 
-                const mechInput = new TextInputBuilder()
-                    .setCustomId('s_mech')
-                    .setLabel('Mechanics Rating (1.0 - 10.0)')
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('e.g., 8.5')
-                    .setRequired(true);
+                if (posGroup === 'def') {
+                    const modal = new ModalBuilder()
+                        .setCustomId(`modal_eval_def_${targetUserId}`)
+                        .setTitle('🛡️ Defender Evaluation Scorecard');
 
-                const tactInput = new TextInputBuilder()
-                    .setCustomId('s_tact')
-                    .setLabel('Tactical Rating (1.0 - 10.0)')
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('e.g., 7.0')
-                    .setRequired(true);
+                    modal.addComponents(
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('m1').setLabel('Aerial Duels & Clearances (1.0-10.0, No 7)').setStyle(TextInputStyle.Short).setRequired(true)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('m2').setLabel('Defensive Line Shifting (1.0-10.0, No 7)').setStyle(TextInputStyle.Short).setRequired(true)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('m3').setLabel('Manual Tackle Discipline (1.0-10.0, No 7)').setStyle(TextInputStyle.Short).setRequired(true)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('m4').setLabel('Voice Leadership & Comms (1.0-10.0, No 7)').setStyle(TextInputStyle.Short).setRequired(true)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('notes').setLabel('Scout Notes & Coaching Feedback').setStyle(TextInputStyle.Paragraph).setRequired(true))
+                    );
+                    return await interaction.showModal(modal);
+                }
 
-                const commInput = new TextInputBuilder()
-                    .setCustomId('s_comm')
-                    .setLabel('Communication Rating (1.0 - 10.0)')
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('e.g., 9.0')
-                    .setRequired(true);
+                if (posGroup === 'mid') {
+                    const modal = new ModalBuilder()
+                        .setCustomId(`modal_eval_mid_${targetUserId}`)
+                        .setTitle('🧠 Midfielder Evaluation Scorecard');
 
-                const compInput = new TextInputBuilder()
-                    .setCustomId('s_comp')
-                    .setLabel('Roster Fit Rating (1.0 - 10.0)')
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('e.g., 8.0')
-                    .setRequired(true);
+                    modal.addComponents(
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('m1').setLabel('Press Resistance & Retention (1.0-10.0, No 7)').setStyle(TextInputStyle.Short).setRequired(true)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('m2').setLabel('Passing Tempo & Vision (1.0-10.0, No 7)').setStyle(TextInputStyle.Short).setRequired(true)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('m3').setLabel('Defensive Cover Transitions (1.0-10.0, No 7)').setStyle(TextInputStyle.Short).setRequired(true)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('m4').setLabel('Voice Leadership & Comms (1.0-10.0, No 7)').setStyle(TextInputStyle.Short).setRequired(true)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('notes').setLabel('Scout Notes & Coaching Feedback').setStyle(TextInputStyle.Paragraph).setRequired(true))
+                    );
+                    return await interaction.showModal(modal);
+                }
 
-                evalModal.addComponents(
-                    new ActionRowBuilder().addComponents(mechInput),
-                    new ActionRowBuilder().addComponents(tactInput),
-                    new ActionRowBuilder().addComponents(commInput),
-                    new ActionRowBuilder().addComponents(compInput)
-                );
+                if (posGroup === 'att') {
+                    const modal = new ModalBuilder()
+                        .setCustomId(`modal_eval_att_${targetUserId}`)
+                        .setTitle('🎯 Attacker Evaluation Scorecard');
 
-                return await interaction.showModal(evalModal);
+                    modal.addComponents(
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('m1').setLabel('Off-Ball Movement & Spacing (1.0-10.0, No 7)').setStyle(TextInputStyle.Short).setRequired(true)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('m2').setLabel('Clinical Chance Finishing (1.0-10.0, No 7)').setStyle(TextInputStyle.Short).setRequired(true)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('m3').setLabel('High-Press Triggering (1.0-10.0, No 7)').setStyle(TextInputStyle.Short).setRequired(true)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('m4').setLabel('Voice Leadership & Comms (1.0-10.0, No 7)').setStyle(TextInputStyle.Short).setRequired(true)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('notes').setLabel('Scout Notes & Coaching Feedback').setStyle(TextInputStyle.Paragraph).setRequired(true))
+                    );
+                    return await interaction.showModal(modal);
+                }
             }
 
-            // Handle Staff Decision Buttons
+            // 3. STAFF BUTTONS: Accept / Reject Promotion Workflow
             if (interaction.customId.startsWith('staff_accept_')) {
                 const userId = interaction.customId.split('_')[2];
-                await interaction.reply({ content: `✅ Candidate <@${userId}> accepted for trial process!`, ephemeral: false });
+                try {
+                    const member = await interaction.guild.members.fetch(userId);
+                    
+                    // Auto-Assign Roles
+                    if (process.env.ROLE_TRIALIST) await member.roles.remove(process.env.ROLE_TRIALIST);
+                    if (process.env.ROLE_PROSPECT) await member.roles.add(process.env.ROLE_PROSPECT);
+
+                    await interaction.reply({ content: `✅ <@${userId}> has been officially accepted and promoted to **@Academia Prospect**!`, ephemeral: false });
+                } catch (err) {
+                    await interaction.reply({ content: `✅ Candidate accepted! (Note: Could not update roles automatically. Verify bot role hierarchy and ROLE_PROSPECT ID).`, ephemeral: true });
+                }
             } else if (interaction.customId.startsWith('staff_reject_')) {
                 const userId = interaction.customId.split('_')[2];
-                await interaction.reply({ content: `❌ Candidate <@${userId}> rejected.`, ephemeral: false });
+                try {
+                    const member = await interaction.guild.members.fetch(userId);
+                    if (process.env.ROLE_TRIALIST) await member.roles.remove(process.env.ROLE_TRIALIST);
+                } catch (err) {}
+                await interaction.reply({ content: `❌ Candidate <@${userId}> trial process closed.`, ephemeral: false });
             }
         }
 
-        // 2. Handle Application Modal Submissions
+        // 4. MODAL SUBMISSION HANDLER
         if (interaction.isModalSubmit()) {
+            // Intake Modal Submission
             if (interaction.customId === 'modal_tryout' || interaction.customId === 'modal_transfer') {
-                await interaction.reply({ content: '✅ Application submitted successfully! Our scouting staff will review your dossier.', ephemeral: true });
+                await interaction.reply({ content: '✅ Application submitted successfully! You have been granted the @Trialist role.', ephemeral: true });
 
                 const ign = interaction.fields.getTextInputValue('ign_input');
                 const roles = interaction.fields.getTextInputValue('role_input');
@@ -188,6 +221,15 @@ client.on('interactionCreate', async interaction => {
                 const links = interaction.fields.getTextInputValue('links_input') || 'None provided';
                 const isTransfer = interaction.customId === 'modal_transfer';
 
+                // Automatically Give @Trialist Role
+                try {
+                    const member = await interaction.guild.members.fetch(interaction.user.id);
+                    if (process.env.ROLE_TRIALIST) await member.roles.add(process.env.ROLE_TRIALIST);
+                } catch (err) {
+                    console.error('⚠️ Could not auto-assign @Trialist role:', err.message);
+                }
+
+                // Send Scouting Docket to Staff Channel
                 if (process.env.STAFF_DOCKET_CHANNEL_ID) {
                     const staffChannel = await client.channels.fetch(process.env.STAFF_DOCKET_CHANNEL_ID);
                     
@@ -204,48 +246,62 @@ client.on('interactionCreate', async interaction => {
                         )
                         .setTimestamp();
 
-                    const staffRow = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder()
-                            .setCustomId(`staff_eval_${interaction.user.id}`)
-                            .setLabel('Log Evaluation')
-                            .setStyle(ButtonStyle.Primary)
-                            .setEmoji('📊'),
-                        new ButtonBuilder()
-                            .setCustomId(`staff_accept_${interaction.user.id}`)
-                            .setLabel('Accept')
-                            .setStyle(ButtonStyle.Success),
-                        new ButtonBuilder()
-                            .setCustomId(`staff_reject_${interaction.user.id}`)
-                            .setLabel('Reject')
-                            .setStyle(ButtonStyle.Danger)
+                    const staffRow1 = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder().setCustomId(`eval_def_${interaction.user.id}`).setLabel('Eval DEF').setStyle(ButtonStyle.Primary).setEmoji('🛡️'),
+                        new ButtonBuilder().setCustomId(`eval_mid_${interaction.user.id}`).setLabel('Eval MID').setStyle(ButtonStyle.Primary).setEmoji('🧠'),
+                        new ButtonBuilder().setCustomId(`eval_att_${interaction.user.id}`).setLabel('Eval ATT').setStyle(ButtonStyle.Primary).setEmoji('🎯')
                     );
 
-                    await staffChannel.send({ embeds: [docketEmbed], components: [staffRow] });
+                    const staffRow2 = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder().setCustomId(`staff_accept_${interaction.user.id}`).setLabel('Accept & Promote').setStyle(ButtonStyle.Success),
+                        new ButtonBuilder().setCustomId(`staff_reject_${interaction.user.id}`).setLabel('Reject').setStyle(ButtonStyle.Danger)
+                    );
+
+                    await staffChannel.send({ embeds: [docketEmbed], components: [staffRow1, staffRow2] });
                 }
             }
 
-            // 3. Handle Scout Evaluation Scorecard Submission
+            // Evaluation Modal Submission (Defender, Midfielder, Attacker)
             if (interaction.customId.startsWith('modal_eval_')) {
-                const targetUserId = interaction.customId.split('_')[2];
-                
-                const mech = parseFloat(interaction.fields.getTextInputValue('s_mech')) || 0;
-                const tact = parseFloat(interaction.fields.getTextInputValue('s_tact')) || 0;
-                const comm = parseFloat(interaction.fields.getTextInputValue('s_comm')) || 0;
-                const comp = parseFloat(interaction.fields.getTextInputValue('s_comp')) || 0;
+                const parts = interaction.customId.split('_');
+                const posGroup = parts[2]; // 'def', 'mid', 'att'
+                const targetUserId = parts[3];
 
-                // Weighted Score Formula: 35% Mech, 25% Tact, 25% Comm, 15% Comp
-                const overall = ((mech * 0.35) + (tact * 0.25) + (comm * 0.25) + (comp * 0.15)).toFixed(1);
+                const v1 = interaction.fields.getTextInputValue('m1');
+                const v2 = interaction.fields.getTextInputValue('m2');
+                const v3 = interaction.fields.getTextInputValue('m3');
+                const v4 = interaction.fields.getTextInputValue('m4');
+                const notes = interaction.fields.getTextInputValue('notes');
+
+                // Enforce No-7 Rule Validation
+                const err1 = validateScore(v1, 'Metric 1');
+                const err2 = validateScore(v2, 'Metric 2');
+                const err3 = validateScore(v3, 'Metric 3');
+                const err4 = validateScore(v4, 'Metric 4');
+
+                const errorMsg = err1 || err2 || err3 || err4;
+                if (errorMsg) {
+                    return await interaction.reply({ content: errorMsg, ephemeral: true });
+                }
+
+                const s1 = parseFloat(v1), s2 = parseFloat(v2), s3 = parseFloat(v3), s4 = parseFloat(v4);
+                
+                // Calculate Weighted Overall Rating (35% / 25% / 25% / 15%)
+                const overall = ((s1 * 0.35) + (s2 * 0.25) + (s3 * 0.25) + (s4 * 0.15)).toFixed(1);
+
+                const groupNames = { def: '🛡️ DEFENDER', mid: '🧠 MIDFIELDER', att: '🎯 ATTACKER' };
 
                 const scoreEmbed = new EmbedBuilder()
-                    .setTitle(`📊 SCOUT SCORECARD`)
+                    .setTitle(`📊 SCOUT SCORECARD: ${groupNames[posGroup]}`)
                     .setColor(overall >= 7.5 ? 0x00FF00 : 0xFF9900)
-                    .setDescription(`Evaluation recorded by <@${interaction.user.id}> for candidate <@${targetUserId}>`)
+                    .setDescription(`Logged by <@${interaction.user.id}> for candidate <@${targetUserId}>`)
                     .addFields(
-                        { name: '⚙️ Mechanics', value: `${mech} / 10`, inline: true },
-                        { name: '🧠 Tactics', value: `${tact} / 10`, inline: true },
-                        { name: '🗣️ Comms', value: `${comm} / 10`, inline: true },
-                        { name: '🧩 Roster Fit', value: `${comp} / 10`, inline: true },
-                        { name: '⭐ Overall Rating', value: `**${overall} / 10.0**`, inline: false }
+                        { name: 'Metric 1 Rating', value: `${s1} / 10.0`, inline: true },
+                        { name: 'Metric 2 Rating', value: `${s2} / 10.0`, inline: true },
+                        { name: 'Metric 3 Rating', value: `${s3} / 10.0`, inline: true },
+                        { name: 'Voice & Comms', value: `${s4} / 10.0`, inline: true },
+                        { name: '⭐ Calculated Overall', value: `**${overall} / 10.0**`, inline: false },
+                        { name: '📝 Scout Notes & Feedback', value: notes, inline: false }
                     )
                     .setTimestamp();
 

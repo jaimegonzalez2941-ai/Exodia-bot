@@ -7,7 +7,8 @@ const {
     ModalBuilder, 
     TextInputBuilder, 
     TextInputStyle, 
-    EmbedBuilder 
+    EmbedBuilder,
+    PermissionsBitField
 } = require('discord.js');
 require('dotenv').config();
 
@@ -94,8 +95,85 @@ function validateScore(value, label) {
     return null;
 }
 
+// Verify bot permissions in configured channels and role hierarchy
+async function verifyGuildPermissions() {
+    const channelIds = [];
+    if (process.env.TRIAL_SUBMISSION_CHANNEL_ID) channelIds.push({ key: 'TRIAL_SUBMISSION_CHANNEL_ID', id: process.env.TRIAL_SUBMISSION_CHANNEL_ID });
+    if (process.env.STAFF_DOCKET_CHANNEL_ID) channelIds.push({ key: 'STAFF_DOCKET_CHANNEL_ID', id: process.env.STAFF_DOCKET_CHANNEL_ID });
+
+    for (const ch of channelIds) {
+        try {
+            const channel = await client.channels.fetch(ch.id);
+            if (!channel) {
+                console.warn(`⚠️ Channel ${ch.key} (${ch.id}) not found or inaccessible.`);
+                continue;
+            }
+
+            const guild = channel.guild;
+            if (!guild) {
+                console.warn(`⚠️ Channel ${ch.id} does not belong to a guild (unexpected).`);
+                continue;
+            }
+
+            // Fetch the bot's GuildMember
+            let botMember;
+            try {
+                botMember = await guild.members.fetch(client.user.id);
+            } catch (err) {
+                console.warn(`⚠️ Could not fetch bot member for guild ${guild.id}:`, err.message);
+                continue;
+            }
+
+            // Required permissions in channel
+            const required = new PermissionsBitField([
+                PermissionsBitField.Flags.ViewChannel,
+                PermissionsBitField.Flags.SendMessages,
+                PermissionsBitField.Flags.EmbedLinks
+            ]);
+
+            const missing = required.missing(botMember.permissionsIn(channel));
+            if (missing.length) {
+                console.warn(`⚠️ Bot is missing permissions in channel ${ch.key} (${ch.id}) on guild ${guild.id}: ${missing.join(', ')}.`);
+            } else {
+                console.log(`✅ Bot has required permissions in ${ch.key} (${ch.id}) on guild ${guild.id}.`);
+            }
+
+            // If role IDs are provided, verify bot role is higher than target roles
+            const roleChecks = [process.env.ROLE_TRIALIST, process.env.ROLE_PROSPECT].filter(Boolean);
+            for (const roleId of roleChecks) {
+                try {
+                    const role = await guild.roles.fetch(roleId).catch(() => null);
+                    if (!role) {
+                        console.warn(`⚠️ Role ${roleId} not found in guild ${guild.id}.`);
+                        continue;
+                    }
+
+                    const botHighest = botMember.roles.highest;
+                    if (botHighest.position <= role.position) {
+                        console.warn(`⚠️ Bot's highest role (${botHighest.id}) is not higher than target role (${role.id}) in guild ${guild.id}. Role assignment may fail.`);
+                    } else {
+                        console.log(`✅ Bot role hierarchy ok for role ${role.id} in guild ${guild.id}.`);
+                    }
+                } catch (err) {
+                    console.warn(`⚠️ Error checking role ${roleId} in guild ${guild.id}:`, err.message);
+                }
+            }
+
+        } catch (err) {
+            console.warn(`⚠️ Could not validate channel ${ch.key} (${ch.id}):`, err.message);
+        }
+    }
+}
+
 client.once('ready', async () => {
     console.log(`🤖 [BOT ONLINE] Logged in as ${client.user.tag}`);
+
+    // Verify guild permissions for configured channels/roles
+    try {
+        await verifyGuildPermissions();
+    } catch (err) {
+        console.error('⚠️ Error during guild permission verification:', err);
+    }
     
     // Auto-deploy public recruitment landing panel
     if (process.env.TRIAL_SUBMISSION_CHANNEL_ID) {
